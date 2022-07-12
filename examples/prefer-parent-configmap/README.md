@@ -1,4 +1,4 @@
-# Prefer "Parent" Cluster Configmap(s)
+# Prefer "Parent" Cluster Resources(s)
 
 The default behavior of this vcluster plugin is to prefer resources from the "parent" (or 
 physical/host) cluster. This example is a basic showcase of this behavior.
@@ -27,7 +27,7 @@ vcluster (and which would get synced into the parent cluster by the vcluster syn
 Now that the vcluster is set up, and a "real" configmap is created in the parent cluster, it is 
 time to test out the plugin!
 
-`make connect-vcluster && KUBECONFIG=./kubeconfig.yaml kubectl apply -f examples/prefer-parent-configmap/vcluster-manifests`
+`make connect-vcluster && sleep 1 && KUBECONFIG=./kubeconfig.yaml kubectl apply -f examples/prefer-parent-configmap/vcluster-manifests`
 
 *Note* the make directive runs connect and sends it to the background -- this makes vcluster 
 generate the kubeconfig file we can use to connect to the vcluster. You could of course just use 
@@ -44,7 +44,7 @@ it is, is the "real" configmap mounted to the pod?
 
 Should show the pod from the vcluster is in fact up and running.
 
-`kubectl get pods -n my-vcluster nginx-f968549f6-p2bhr-x-vcluster-x-my-vcluster -o jsonpath='{.spec.volumes[0].configMap.name}'`
+`kubectl get pods -n my-vcluster $(kubectl get pods -n my-vcluster | grep nginx | awk '{ print $1 }') -o jsonpath='{.spec.volumes[0].configMap.name}'`
 
 Should show that the name of the mounted volume is "real-configmap", which is of course the 
 "real" configmap in the parent cluster. In "normal" vcluster operations, if we had created a 
