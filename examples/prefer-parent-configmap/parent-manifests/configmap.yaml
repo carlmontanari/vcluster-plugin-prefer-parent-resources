@@ -3,7 +3,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: real-configmap
-  namespace: my-vcluster
+  namespace: vcluster-plugin-dev
 data:
   redis.conf: |
     somekey=somevalue

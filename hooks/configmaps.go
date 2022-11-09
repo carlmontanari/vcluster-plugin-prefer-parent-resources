@@ -11,14 +11,14 @@ import (
 	syncercontext "github.com/loft-sh/vcluster-sdk/syncer/context"
 	"github.com/loft-sh/vcluster-sdk/syncer/translator"
 	corev1 "k8s.io/api/core/v1"
-	"sigs.k8s.io/controller-runtime/pkg/client"
+	ctrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 const (
 	preferConfigMapsHookName = "prefer-parent-configmaps-hook"
 
 	// SkipPreferConfigMapsHook is the annotation key that, if any value is set, will cause this
-	// plugin to skip preferring the parent (physical/real) resources.
+	// plugin to skip preferring the parent (physical/real) configmap resources.
 	SkipPreferConfigMapsHook = "skip-prefer-parent-configmaps-hook"
 )
 
@@ -43,8 +43,8 @@ func NewPreferParentConfigmapsHook(ctx *syncercontext.RegisterContext) hook.Clie
 type PreferParentConfigmapsHook struct {
 	translator        translator.NamespacedTranslator
 	physicalNamespace string
-	physicalClient    client.Client
-	virtualClient     client.Client
+	physicalClient    ctrlruntimeclient.Client
+	virtualClient     ctrlruntimeclient.Client
 }
 
 // Name returns the name of the ClientHook.
@@ -53,7 +53,7 @@ func (h *PreferParentConfigmapsHook) Name() string {
 }
 
 // Resource returns the type of resource the ClientHook mutates.
-func (h *PreferParentConfigmapsHook) Resource() client.Object {
+func (h *PreferParentConfigmapsHook) Resource() ctrlruntimeclient.Object {
 	return &corev1.Pod{}
 }
 
@@ -64,8 +64,8 @@ var _ hook.MutateCreatePhysical = &PreferParentConfigmapsHook{}
 // the configmap reference of the vcluster created configmap with the "real" configmap.
 func (h *PreferParentConfigmapsHook) MutateCreatePhysical(
 	ctx context.Context,
-	obj client.Object,
-) (client.Object, error) {
+	obj ctrlruntimeclient.Object,
+) (ctrlruntimeclient.Object, error) {
 	pod, ok := obj.(*corev1.Pod)
 	if !ok {
 		return nil, fmt.Errorf("%w: object %v is not a pod", ErrWrongResourceType, obj)
@@ -77,6 +77,11 @@ func (h *PreferParentConfigmapsHook) MutateCreatePhysical(
 			return pod, nil
 		}
 	}
+
+	configEnvs := FindMountedEnvsOfType(&pod.Spec, configMap)
+	configVols := FindMountedVolumesOfType(&pod.Spec, configMap)
+
+	fmt.Println("envs/vols->", configEnvs, configVols)
 
 	for i := range pod.Spec.Volumes {
 		if pod.Spec.Volumes[i].VolumeSource.ConfigMap == nil {
@@ -107,7 +112,7 @@ func (h *PreferParentConfigmapsHook) MutateCreatePhysical(
 		var pVolumeName string
 
 		// will the volumes always be in the same order? assuming "yes" for now, but open to being
-		// wrong about that!k
+		// wrong about that!
 		if vPod.Spec.Volumes[i].VolumeSource.ConfigMap == nil {
 			continue
 		}
@@ -157,8 +162,8 @@ var _ hook.MutateUpdatePhysical = &PreferParentConfigmapsHook{}
 // enforcing the plugin annotations on the physical resources.
 func (h *PreferParentConfigmapsHook) MutateUpdatePhysical(
 	ctx context.Context,
-	obj client.Object,
-) (client.Object, error) {
+	obj ctrlruntimeclient.Object,
+) (ctrlruntimeclient.Object, error) {
 	_ = ctx
 
 	pod, ok := obj.(*corev1.Pod)

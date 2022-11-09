@@ -7,11 +7,10 @@ import (
 	"github.com/google/go-cmp/cmp"
 
 	"github.com/loft-sh/vcluster-sdk/syncer/translator"
-	"sigs.k8s.io/controller-runtime/pkg/client"
+	ctrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/carlmontanari/vcluster-plugin-prefer-parent-resources/hooks"
 	generictesting "github.com/loft-sh/vcluster-sdk/syncer/testing"
-	testingutil "github.com/loft-sh/vcluster/pkg/util/testing"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -21,7 +20,7 @@ type testPreferParentConfigmapHookTestCase struct {
 	description string
 	pClientObjs []runtime.Object
 	vClientObjs []runtime.Object
-	mutateObj   client.Object
+	mutateObj   ctrlruntimeclient.Object
 	expected    string
 }
 
@@ -32,7 +31,7 @@ func testPreferParentConfigmapsMutateCreatePhysical(
 	return func(t *testing.T) {
 		t.Logf("%s: starting", testName)
 
-		scheme := testingutil.NewScheme()
+		scheme := newScheme()
 
 		pClient := generictesting.NewFakeClient(scheme, testCase.pClientObjs...)
 		vClient := generictesting.NewFakeClient(scheme, testCase.vClientObjs...)
@@ -59,7 +58,8 @@ func testPreferParentConfigmapsMutateCreatePhysical(
 func TestPreferParentConfigmapsMutateCreatePhysical(t *testing.T) {
 	cases := map[string]*testPreferParentConfigmapHookTestCase{
 		"no-sync-annotation": {
-			description: "validate that pods with the 'no-sync' annotation do not get mutated to attach to 'real' configmap",
+			description: "validate that pods with the 'no-sync' annotation do not get mutated " +
+				"to attach to 'real' configmap",
 			pClientObjs: []runtime.Object{},
 			vClientObjs: []runtime.Object{
 				&corev1.Pod{
@@ -109,7 +109,8 @@ func TestPreferParentConfigmapsMutateCreatePhysical(t *testing.T) {
 			expected: "someconfigmap-x-test-x-suffix",
 		},
 		"no-sync-no-real-configmap": {
-			description: "validate that pods with no 'real' configmap end up using the 'virtual' (vcluster) configmap",
+			description: "validate that pods with no 'real' configmap end up using the 'virtual' " +
+				"(vcluster) configmap",
 			pClientObjs: []runtime.Object{},
 			vClientObjs: []runtime.Object{
 				&corev1.Pod{
@@ -158,7 +159,8 @@ func TestPreferParentConfigmapsMutateCreatePhysical(t *testing.T) {
 			expected: "someconfigmap-x-test-x-suffix",
 		},
 		"sync-real-configmap": {
-			description: "validate that pods with a 'real' configmap end up using the 'parent' (pcluster) configmap",
+			description: "validate that pods with a 'real' configmap end up using the 'parent' " +
+				"(pcluster) configmap",
 			pClientObjs: []runtime.Object{
 				&corev1.ConfigMap{
 					ObjectMeta: metav1.ObjectMeta{
@@ -229,7 +231,7 @@ func testPreferParentConfigmapsMutateUpdatePhysical(
 	return func(t *testing.T) {
 		t.Logf("%s: starting", testName)
 
-		scheme := testingutil.NewScheme()
+		scheme := newScheme()
 
 		pClient := generictesting.NewFakeClient(scheme)
 		vClient := generictesting.NewFakeClient(scheme)

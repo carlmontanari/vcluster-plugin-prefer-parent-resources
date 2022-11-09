@@ -16,4 +16,4 @@ cov:  ## Produce html coverage report
 	go tool cover -html=cover.out
 
 connect-vcluster: ## connect to vcluster and pop out KUBECONFIG
-	vcluster connect my-vcluster -n my-vcluster --kube-config="./kubeconfig.yaml" --update-current=false &
+	vcluster connect vcluster -n vcluster-plugin-dev --kube-config="./kubeconfig.yaml" --update-current=false &

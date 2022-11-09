@@ -1,46 +1,37 @@
-version: v1beta11
+version: v2beta1
+name: devspace-prefer-parent-resources-plugin
+
 vars:
-  - name: PLUGIN_IMAGE
-    value: localhost:5050/prefer-parent-resources-hooks
-  - name: PLUGIN_IMAGE_K3D
-    value: k3d-local-registry:5050/prefer-parent-resources-hooks:latest
-  - name: K3S_IMAGE
-    value: rancher/k3s:v1.23.1-k3s1
-  - name: SERVICE_CIDR
+  REPOSITORY_HOST: 172.31.254.11
+  PLUGIN_IMAGE: prefer-parent-resources-hooks
+  SERVICE_CIDR:
     command: vcluster get service-cidr
-hooks:
-  - name: Install Dependencies
-    events: ["after:deploy"]
-    command: |-
-      # Install dependencies
-      if [ ! -d "vendor" ]; then
-        echo "Executing 'go mod vendor'..."
-        go mod vendor
-      fi
+
 images:
-  vcluster:
-    image: ${PLUGIN_IMAGE}
+  prefer-parent-resources:
+    image: ${REPOSITORY_HOST}/${PLUGIN_IMAGE}
     dockerfile: ./Dockerfile.dev
     rebuildStrategy: ignoreContextChanges
     tags:
       - latest
+
 deployments:
-  - name: vcluster
+  vcluster:
     helm:
       chart:
         name: vcluster
         repo: https://charts.loft.sh
-        version: 0.9.1
+        version: 0.12.3
       values:
         plugin:
           prefer-parent-resources-hooks:
-            image: ${PLUGIN_IMAGE_K3D}
+            image: ${REPOSITORY_HOST}/${PLUGIN_IMAGE}
         serviceCIDR: ${SERVICE_CIDR}
         serviceAccount:
           create: false
           name: default
-        vcluster:
-          image: ${K3S_IMAGE}
+        storage:
+          persistence: false
         rbac:
           clusterRole:
             create: true
@@ -51,15 +42,13 @@ deployments:
             enabled: false
           livenessProbe:
             enabled: false
+
 dev:
-  terminal:
-    imageSelector: ${PLUGIN_IMAGE_K3D}
-    command: ["./devspace_start.sh"]
-  ports:
-    - imageSelector: ${PLUGIN_IMAGE_K3D}
-      forward:
-        - port: 2346
-          remotePort: 2345
-  sync:
-    - imageSelector: ${PLUGIN_IMAGE_K3D}
-      containerPath: /vcluster
+  plugin-dev:
+    imageSelector: ${REPOSITORY_HOST}/${PLUGIN_IMAGE}
+    container: ${PLUGIN_IMAGE}
+    devImage: ghcr.io/loft-sh/devspace-containers/go:1.19-alpine
+    terminal:
+      command: ./devspace_start.sh
+    sync:
+      - path: ./

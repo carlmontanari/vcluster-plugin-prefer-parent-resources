@@ -6,7 +6,11 @@ import (
 )
 
 func main() {
-	ctx := plugin.MustInit("prefer-parent-resources-hooks")
-	plugin.MustRegister(hooks.NewPreferParentConfigmapsHook(ctx))
+	ctx := plugin.MustInit()
+
+	for _, hook := range hooks.GetAllHooks(ctx) {
+		plugin.MustRegister(hook)
+	}
+
 	plugin.MustStart()
 }
