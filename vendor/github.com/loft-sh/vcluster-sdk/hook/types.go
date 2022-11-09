@@ -2,7 +2,6 @@ package hook
 
 import (
 	"context"
-
 	"github.com/loft-sh/vcluster-sdk/syncer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )

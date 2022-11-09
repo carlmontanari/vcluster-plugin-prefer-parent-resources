@@ -2,7 +2,6 @@ package syncer
 
 import (
 	"context"
-
 	"github.com/loft-sh/vcluster-sdk/log"
 
 	synccontext "github.com/loft-sh/vcluster-sdk/syncer/context"

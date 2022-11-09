@@ -2,7 +2,6 @@ package context
 
 import (
 	"context"
-
 	"github.com/loft-sh/vcluster-sdk/log"
 	"k8s.io/client-go/tools/clientcmd"
 

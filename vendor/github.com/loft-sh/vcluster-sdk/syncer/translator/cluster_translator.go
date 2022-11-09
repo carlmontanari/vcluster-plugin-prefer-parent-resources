@@ -4,7 +4,6 @@ import (
 	context2 "context"
 	"crypto/sha256"
 	"encoding/hex"
-
 	"github.com/loft-sh/vcluster-sdk/clienthelper"
 
 	"github.com/loft-sh/vcluster-sdk/syncer/context"

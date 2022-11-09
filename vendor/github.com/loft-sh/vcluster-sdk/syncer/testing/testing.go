@@ -3,10 +3,9 @@ package testing
 import (
 	"context"
 	"fmt"
-	"testing"
-
 	synccontext "github.com/loft-sh/vcluster-sdk/syncer/context"
 	"gotest.tools/assert"
+	"testing"
 
 	"github.com/ghodss/yaml"
 	apiequality "k8s.io/apimachinery/pkg/api/equality"

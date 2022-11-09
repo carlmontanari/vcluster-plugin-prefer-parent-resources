@@ -1,9 +1,8 @@
 package translator
 
 import (
-	"strings"
-
 	"github.com/loft-sh/vcluster-sdk/translate"
+	"strings"
 
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"

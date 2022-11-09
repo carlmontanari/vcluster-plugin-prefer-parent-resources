@@ -2,8 +2,6 @@ package testing
 
 import (
 	"context"
-	"testing"
-
 	"github.com/loft-sh/vcluster-sdk/syncer"
 	synccontext "github.com/loft-sh/vcluster-sdk/syncer/context"
 	"gotest.tools/assert"
@@ -13,6 +11,7 @@ import (
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/klog/v2"
+	"testing"
 )
 
 func FakeStartSyncer(t *testing.T, ctx *synccontext.RegisterContext, create func(ctx *synccontext.RegisterContext) (syncer.Base, error)) (*synccontext.SyncContext, syncer.Base) {

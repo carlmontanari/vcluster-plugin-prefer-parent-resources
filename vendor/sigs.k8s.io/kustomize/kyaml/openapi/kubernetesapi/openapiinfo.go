@@ -6,7 +6,7 @@
 package kubernetesapi
 
 import (
-	v1212 "sigs.k8s.io/kustomize/kyaml/openapi/kubernetesapi/v1212"
+	"sigs.k8s.io/kustomize/kyaml/openapi/kubernetesapi/v1212"
 )
 
 const Info = "{title:Kubernetes,version:v1.21.2}"

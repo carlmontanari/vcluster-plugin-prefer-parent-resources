@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-
 	"github.com/loft-sh/vcluster-sdk/hook"
 	"github.com/loft-sh/vcluster-sdk/plugin/remote"
 )

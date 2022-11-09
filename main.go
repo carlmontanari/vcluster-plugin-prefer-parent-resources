@@ -8,5 +8,6 @@ import (
 func main() {
 	ctx := plugin.MustInit("prefer-parent-resources-hooks")
 	plugin.MustRegister(hooks.NewPreferParentConfigmapsHook(ctx))
+	plugin.MustRegister(hooks.NewPreferParentSecretsHook(ctx))
 	plugin.MustStart()
 }

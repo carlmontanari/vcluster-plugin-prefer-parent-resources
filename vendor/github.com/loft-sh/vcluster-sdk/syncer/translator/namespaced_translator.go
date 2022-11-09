@@ -4,13 +4,12 @@ import (
 	context2 "context"
 	"crypto/sha256"
 	"encoding/hex"
-	"reflect"
-	"sort"
-	"strings"
-
 	"github.com/loft-sh/vcluster-sdk/clienthelper"
 	"github.com/loft-sh/vcluster-sdk/syncer/context"
 	"github.com/loft-sh/vcluster-sdk/translate"
+	"reflect"
+	"sort"
+	"strings"
 
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/meta"

@@ -3,7 +3,6 @@ package log
 import (
 	"fmt"
 	"os"
-
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/go-logr/logr"

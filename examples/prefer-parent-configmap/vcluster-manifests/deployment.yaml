@@ -20,7 +20,12 @@ spec:
           volumeMounts:
             - name: config
               mountPath: /dummy
+            - name: secrets
+              mountPath: /dummy-secrets
       volumes:
         - name: config
           configMap:
             name: real-configmap
+        - name: secrets
+          secret:
+            secretName: real-secret
