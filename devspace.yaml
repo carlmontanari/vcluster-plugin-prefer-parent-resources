@@ -12,8 +12,11 @@ images:
     image: ${REPOSITORY_HOST}/${PLUGIN_IMAGE}
     dockerfile: ./Dockerfile.dev
     rebuildStrategy: ignoreContextChanges
-    tags:
-      - latest
+
+  prefer-parent-resources-dev:
+    image: ${REPOSITORY_HOST}/${PLUGIN_IMAGE}-dev
+    dockerfile: ./Dockerfile.dev
+    rebuildStrategy: ignoreContextChanges
 
 deployments:
   vcluster:
@@ -47,7 +50,7 @@ dev:
   plugin-dev:
     imageSelector: ${REPOSITORY_HOST}/${PLUGIN_IMAGE}
     container: ${PLUGIN_IMAGE}
-    devImage: ghcr.io/loft-sh/devspace-containers/go:1.19-alpine
+    devImage: ${REPOSITORY_HOST}/${PLUGIN_IMAGE}-dev
     terminal:
       command: ./devspace_start.sh
     sync:
