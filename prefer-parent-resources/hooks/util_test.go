@@ -3,7 +3,8 @@ package hooks_test
 import (
 	"testing"
 
-	"github.com/carlmontanari/vcluster-plugin-prefer-parent-resources/hooks"
+	"github.com/carlmontanari/vcluster-plugin-prefer-parent-resources/prefer-parent-resources/hooks"
+
 	"github.com/google/go-cmp/cmp"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"

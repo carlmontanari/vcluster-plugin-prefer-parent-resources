@@ -8,7 +8,7 @@ COPY go.sum go.sum
 RUN go mod download
 
 COPY main.go main.go
-COPY hooks/ hooks/
+COPY prefer-parent-resources/ prefer-parent-resources/
 
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -o plugin main.go
 

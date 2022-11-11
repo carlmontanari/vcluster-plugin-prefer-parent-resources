@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/carlmontanari/vcluster-plugin-prefer-parent-resources/hooks"
+	"github.com/carlmontanari/vcluster-plugin-prefer-parent-resources/prefer-parent-resources/hooks"
 	"github.com/loft-sh/vcluster-sdk/plugin"
 )
 

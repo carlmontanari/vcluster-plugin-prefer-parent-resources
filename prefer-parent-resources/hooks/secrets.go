@@ -176,7 +176,7 @@ func (h *PreferParentSecretsHook) MutateCreatePhysical(
 	secretVols := FindMountedVolumesOfType(&pod.Spec, secret)
 
 	if len(secretEnvs) == 0 && len(secretVols) == 0 {
-		// nothing to do, we're outa here!
+		// nothing to do, we're outta here!
 		return pod, nil
 	}
 
@@ -187,8 +187,13 @@ func (h *PreferParentSecretsHook) MutateCreatePhysical(
 		return nil, err
 	}
 
-	pod = h.mutateCreatePhysicalSecretEnvs(secretEnvs, ctx, pod, vPod)
-	pod = h.mutateCreatePhysicalSecretVols(secretVols, ctx, pod, vPod)
+	if len(secretEnvs) > 0 {
+		pod = h.mutateCreatePhysicalSecretEnvs(secretEnvs, ctx, pod, vPod)
+	}
+
+	if len(secretVols) > 0 {
+		pod = h.mutateCreatePhysicalSecretVols(secretVols, ctx, pod, vPod)
+	}
 
 	return pod, nil
 }

@@ -10,7 +10,7 @@ lint: ## Run linters
 	golangci-lint run
 
 test: ## Run unit tests
-	gotestsum --format testname --hide-summary=skipped -- -coverprofile=cover.out ./hooks/...
+	gotestsum --format testname --hide-summary=skipped -- -coverprofile=cover.out ./prefer-parent-resources/...
 
 cov:  ## Produce html coverage report
 	go tool cover -html=cover.out

@@ -59,6 +59,101 @@ func (h *PreferParentConfigmapsHook) Resource() ctrlruntimeclient.Object {
 
 var _ hook.MutateCreatePhysical = &PreferParentConfigmapsHook{}
 
+func (h *PreferParentConfigmapsHook) mutateCreatePhysicalConfigMapEnvs(
+	configmapEnvs []EnvAtPos,
+	ctx context.Context,
+	pod, vPod *corev1.Pod,
+) *corev1.Pod {
+	for i := range configmapEnvs {
+		var pEnvRefName string
+
+		for envI := range vPod.Spec.Containers[configmapEnvs[i].containerPos].Env {
+			vObjName := vPod.Spec.Containers[configmapEnvs[i].containerPos].Env[envI].
+				ValueFrom.ConfigMapKeyRef.LocalObjectReference.Name
+
+			translatedEnvRefName := translate.PhysicalName(
+				vObjName,
+				vPod.Namespace,
+			)
+
+			if translatedEnvRefName == configmapEnvs[i].env.ValueFrom.ConfigMapKeyRef.
+				LocalObjectReference.Name {
+				pEnvRefName = vObjName
+
+				break
+			}
+		}
+
+		if pEnvRefName == "" {
+			continue
+		}
+
+		realConfigMap := &corev1.ConfigMap{}
+
+		err := h.physicalClient.Get(
+			ctx,
+			types.NamespacedName{
+				Name:      pEnvRefName,
+				Namespace: h.physicalNamespace,
+			},
+			realConfigMap,
+		)
+		// we did not find a real configmap matching the virtual pods configmap name
+		if err != nil {
+			continue
+		}
+
+		pod.Spec.Containers[configmapEnvs[i].containerPos].Env[configmapEnvs[i].envPos].ValueFrom.
+			ConfigMapKeyRef.LocalObjectReference.Name = pEnvRefName
+	}
+
+	return pod
+}
+
+func (h *PreferParentConfigmapsHook) mutateCreatePhysicalConfigMapVols(
+	configmapVols []VolAtPos,
+	ctx context.Context,
+	pod, vPod *corev1.Pod,
+) *corev1.Pod {
+	for i := range configmapVols {
+		var pVolumeName string
+
+		translatedVolumeName := translate.PhysicalName(
+			vPod.Spec.Volumes[configmapVols[i].pos].ConfigMap.Name,
+			vPod.Namespace,
+		)
+
+		if translatedVolumeName == configmapVols[i].vol.ConfigMap.Name {
+			pVolumeName = vPod.Spec.Volumes[i].VolumeSource.ConfigMap.Name
+		}
+
+		// we should *not* ever hit this because we should always have alignment between the virtual
+		// and physical objects
+		if pVolumeName == "" {
+			continue
+		}
+
+		realConfigMap := &corev1.ConfigMap{}
+
+		err := h.physicalClient.Get(
+			ctx,
+			types.NamespacedName{
+				Name:      pVolumeName,
+				Namespace: h.physicalNamespace,
+			},
+			realConfigMap,
+		)
+		// we did not find a real configmap matching the virtual pods configmap name
+		if err != nil {
+			continue
+		}
+
+		pod.Spec.Volumes[configmapVols[i].pos].VolumeSource.ConfigMap.Name = pVolumeName
+	}
+
+	return pod
+}
+
 // MutateCreatePhysical mutates incoming physical cluster create operations to determine if the pod
 // being created refers to a configmap that exists in the physical cluster, if "yes", we replace
 // the configmap reference of the vcluster created configmap with the "real" configmap.
@@ -81,77 +176,25 @@ func (h *PreferParentConfigmapsHook) MutateCreatePhysical(
 	configEnvs := FindMountedEnvsOfType(&pod.Spec, configMap)
 	configVols := FindMountedVolumesOfType(&pod.Spec, configMap)
 
-	fmt.Println("envs/vols->", configEnvs, configVols)
-
-	for i := range pod.Spec.Volumes {
-		if pod.Spec.Volumes[i].VolumeSource.ConfigMap == nil {
-			continue
-		}
-
-		volume := pod.Spec.Volumes[i]
-
-		// get the "real" name of the pod (as in "real" in the vcluster)
-		vName := pod.Annotations[translator.NameAnnotation]
-		vNamespace := pod.Annotations[translator.NamespaceAnnotation]
-
-		vPod := &corev1.Pod{}
-
-		err := h.virtualClient.Get(
-			ctx,
-			types.NamespacedName{Name: vName, Namespace: vNamespace},
-			vPod,
-		)
-		if err != nil {
-			return nil, fmt.Errorf(
-				"%w: failed getting vcluster pod resource for object %s",
-				ErrCantGetResource,
-				pod.Name,
-			)
-		}
-
-		var pVolumeName string
-
-		// will the volumes always be in the same order? assuming "yes" for now, but open to being
-		// wrong about that!
-		if vPod.Spec.Volumes[i].VolumeSource.ConfigMap == nil {
-			continue
-		}
-
-		translatedVolumeName := translate.PhysicalName(
-			vPod.Spec.Volumes[i].VolumeSource.ConfigMap.Name,
-			vPod.Namespace,
-		)
-
-		if translatedVolumeName == volume.VolumeSource.ConfigMap.Name {
-			pVolumeName = vPod.Spec.Volumes[i].VolumeSource.ConfigMap.Name
-		}
-
-		// we should *not* ever hit this because we should always have alignment between the virtual
-		// and physical objects
-		if pVolumeName == "" {
-			continue
-		}
-
-		realConfigMap := &corev1.ConfigMap{}
-
-		err = h.physicalClient.Get(
-			ctx,
-			types.NamespacedName{
-				Name:      pVolumeName,
-				Namespace: h.physicalNamespace,
-			},
-			realConfigMap,
-		)
-
-		// we did not find a real configmap matching the virtual pods configmap name
-		if err != nil {
-			continue
-		}
-
-		volume.VolumeSource.ConfigMap.Name = pVolumeName
+	if len(configEnvs) == 0 && len(configVols) == 0 {
+		// nothing to do, we're outta here!
+		return pod, nil
 	}
 
 	MutateAnnotations(pod, preferConfigMapsHookName)
+
+	vPod, err := GetVirtualPod(ctx, pod, h.virtualClient)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(configEnvs) > 0 {
+		pod = h.mutateCreatePhysicalConfigMapEnvs(configEnvs, ctx, pod, vPod)
+	}
+
+	if len(configVols) > 0 {
+		pod = h.mutateCreatePhysicalConfigMapVols(configVols, ctx, pod, vPod)
+	}
 
 	return pod, nil
 }

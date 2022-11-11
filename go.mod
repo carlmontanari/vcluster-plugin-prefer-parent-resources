@@ -7,6 +7,7 @@ require (
 	github.com/loft-sh/vcluster-sdk v0.3.2
 	k8s.io/api v0.25.0
 	k8s.io/apimachinery v0.25.2
+	k8s.io/client-go v0.25.0
 	sigs.k8s.io/controller-runtime v0.12.1
 )
 
@@ -21,7 +22,6 @@ require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/emicklei/go-restful/v3 v3.8.0 // indirect
 	github.com/evanphx/json-patch v4.12.0+incompatible // indirect
-	github.com/evanphx/json-patch/v5 v5.6.0 // indirect
 	github.com/exponent-io/jsonpath v0.0.0-20151013193312-d6023ce2651d // indirect
 	github.com/fatih/camelcase v1.0.0 // indirect
 	github.com/fsnotify/fsnotify v1.5.4 // indirect
@@ -85,7 +85,6 @@ require (
 	gotest.tools v2.2.0+incompatible // indirect
 	k8s.io/apiextensions-apiserver v0.25.0 // indirect
 	k8s.io/cli-runtime v0.25.0 // indirect
-	k8s.io/client-go v0.25.0 // indirect
 	k8s.io/component-base v0.25.0 // indirect
 	k8s.io/klog v1.0.0 // indirect
 	k8s.io/klog/v2 v2.70.1 // indirect
