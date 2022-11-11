@@ -4,6 +4,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	ctrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 type comparePodTestCase struct {
@@ -21,4 +22,18 @@ func newScheme() *runtime.Scheme {
 	}
 
 	return scheme
+}
+
+func falsePtr() *bool {
+	f := false
+
+	return &f
+}
+
+type testPreferParentEnvVolTestCase struct {
+	description string
+	pClientObjs []runtime.Object
+	vClientObjs []runtime.Object
+	mutateObj   ctrlruntimeclient.Object
+	expected    string
 }

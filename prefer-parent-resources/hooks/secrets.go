@@ -1,15 +1,14 @@
+//nolint:dupl
 package hooks
 
 import (
 	"context"
-	"fmt"
 
-	"github.com/loft-sh/vcluster-sdk/translate"
+	vclustersdktranslate "github.com/loft-sh/vcluster-sdk/translate"
 	"k8s.io/apimachinery/pkg/types"
 
-	"github.com/loft-sh/vcluster-sdk/hook"
-	syncercontext "github.com/loft-sh/vcluster-sdk/syncer/context"
-	"github.com/loft-sh/vcluster-sdk/syncer/translator"
+	vclustersdksyncercontext "github.com/loft-sh/vcluster-sdk/syncer/context"
+	vclustersdksyncertranslator "github.com/loft-sh/vcluster-sdk/syncer/translator"
 	corev1 "k8s.io/api/core/v1"
 	ctrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -23,16 +22,21 @@ const (
 )
 
 // NewPreferParentSecretsHook returns a NewPreferParentSecretsHook hook.ClientHook.
-func NewPreferParentSecretsHook(ctx *syncercontext.RegisterContext) hook.ClientHook {
-	return &PreferParentSecretsHook{
-		translator: translator.NewNamespacedTranslator(
+func NewPreferParentSecretsHook(ctx *vclustersdksyncercontext.RegisterContext) EnvVolMutatingHook {
+	return &envVolMutatingHook{
+		name:             preferSecretsHookName,
+		ignoreAnnotation: SkipPreferSecretsHook,
+		mutateType:       &corev1.Secret{},
+		translator: vclustersdksyncertranslator.NewNamespacedTranslator(
 			ctx,
-			"secret",
+			secret,
 			&corev1.Secret{},
 		),
 		physicalNamespace: ctx.TargetNamespace,
 		physicalClient:    ctx.PhysicalManager.GetClient(),
 		virtualClient:     ctx.VirtualManager.GetClient(),
+		envMutator:        mutateCreatePhysicalSecretEnvs,
+		volMutator:        mutateCreatePhysicalSecretVols,
 	}
 }
 
@@ -41,27 +45,14 @@ func NewPreferParentSecretsHook(ctx *syncercontext.RegisterContext) hook.ClientH
 // is that users can create a single vcluster namespace in the parent cluster, and create some
 // secrets that potentially many vcluster resources may use.
 type PreferParentSecretsHook struct {
-	translator        translator.NamespacedTranslator
-	physicalNamespace string
-	physicalClient    ctrlruntimeclient.Client
-	virtualClient     ctrlruntimeclient.Client
+	EnvVolMutatingHook
 }
 
-// Name returns the name of the ClientHook.
-func (h *PreferParentSecretsHook) Name() string {
-	return preferSecretsHookName
-}
-
-// Resource returns the type of resource the ClientHook mutates.
-func (h *PreferParentSecretsHook) Resource() ctrlruntimeclient.Object {
-	return &corev1.Pod{}
-}
-
-var _ hook.MutateCreatePhysical = &PreferParentConfigmapsHook{}
-
-func (h *PreferParentSecretsHook) mutateCreatePhysicalSecretEnvs(
-	secretEnvs []EnvAtPos,
+func mutateCreatePhysicalSecretEnvs(
 	ctx context.Context,
+	physicalClient ctrlruntimeclient.Client,
+	physicalNamespace string,
+	secretEnvs []EnvAtPos,
 	pod, vPod *corev1.Pod,
 ) *corev1.Pod {
 	for i := range secretEnvs {
@@ -71,7 +62,7 @@ func (h *PreferParentSecretsHook) mutateCreatePhysicalSecretEnvs(
 			vObjName := vPod.Spec.Containers[secretEnvs[i].containerPos].Env[envI].
 				ValueFrom.SecretKeyRef.LocalObjectReference.Name
 
-			translatedEnvRefName := translate.PhysicalName(
+			translatedEnvRefName := vclustersdktranslate.PhysicalName(
 				vObjName,
 				vPod.Namespace,
 			)
@@ -89,11 +80,11 @@ func (h *PreferParentSecretsHook) mutateCreatePhysicalSecretEnvs(
 
 		realSecret := &corev1.Secret{}
 
-		err := h.physicalClient.Get(
+		err := physicalClient.Get(
 			ctx,
 			types.NamespacedName{
 				Name:      pEnvRefName,
-				Namespace: h.physicalNamespace,
+				Namespace: physicalNamespace,
 			},
 			realSecret,
 		)
@@ -109,15 +100,17 @@ func (h *PreferParentSecretsHook) mutateCreatePhysicalSecretEnvs(
 	return pod
 }
 
-func (h *PreferParentSecretsHook) mutateCreatePhysicalSecretVols(
-	secretVols []VolAtPos,
+func mutateCreatePhysicalSecretVols(
 	ctx context.Context,
+	physicalClient ctrlruntimeclient.Client,
+	physicalNamespace string,
+	secretVols []VolAtPos,
 	pod, vPod *corev1.Pod,
 ) *corev1.Pod {
 	for i := range secretVols {
 		var pVolumeName string
 
-		translatedVolumeName := translate.PhysicalName(
+		translatedVolumeName := vclustersdktranslate.PhysicalName(
 			vPod.Spec.Volumes[secretVols[i].pos].Secret.SecretName,
 			vPod.Namespace,
 		)
@@ -134,15 +127,16 @@ func (h *PreferParentSecretsHook) mutateCreatePhysicalSecretVols(
 
 		realSecret := &corev1.Secret{}
 
-		err := h.physicalClient.Get(
+		err := physicalClient.Get(
 			ctx,
 			types.NamespacedName{
 				Name:      pVolumeName,
-				Namespace: h.physicalNamespace,
+				Namespace: physicalNamespace,
 			},
 			realSecret,
 		)
 		// we did not find a real configmap matching the virtual pods configmap name
+		// TODO this should check for notfound vs some other errors and behave accordingly
 		if err != nil {
 			continue
 		}
@@ -151,69 +145,4 @@ func (h *PreferParentSecretsHook) mutateCreatePhysicalSecretVols(
 	}
 
 	return pod
-}
-
-// MutateCreatePhysical mutates incoming physical cluster create operations to determine if the pod
-// being created refers to a secret that exists in the physical cluster, if "yes", we replace
-// the secret reference of the vcluster created secret with the "real" secret.
-func (h *PreferParentSecretsHook) MutateCreatePhysical(
-	ctx context.Context,
-	obj ctrlruntimeclient.Object,
-) (ctrlruntimeclient.Object, error) {
-	pod, ok := obj.(*corev1.Pod)
-	if !ok {
-		return nil, fmt.Errorf("%w: object %v is not a pod", ErrWrongResourceType, obj)
-	}
-
-	skip, ok := pod.Annotations[SkipPreferSecretsHook]
-	if ok {
-		if len(skip) > 0 {
-			return pod, nil
-		}
-	}
-
-	secretEnvs := FindMountedEnvsOfType(&pod.Spec, secret)
-	secretVols := FindMountedVolumesOfType(&pod.Spec, secret)
-
-	if len(secretEnvs) == 0 && len(secretVols) == 0 {
-		// nothing to do, we're outta here!
-		return pod, nil
-	}
-
-	MutateAnnotations(pod, preferSecretsHookName)
-
-	vPod, err := GetVirtualPod(ctx, pod, h.virtualClient)
-	if err != nil {
-		return nil, err
-	}
-
-	if len(secretEnvs) > 0 {
-		pod = h.mutateCreatePhysicalSecretEnvs(secretEnvs, ctx, pod, vPod)
-	}
-
-	if len(secretVols) > 0 {
-		pod = h.mutateCreatePhysicalSecretVols(secretVols, ctx, pod, vPod)
-	}
-
-	return pod, nil
-}
-
-var _ hook.MutateUpdatePhysical = &PreferParentConfigmapsHook{}
-
-// MutateUpdatePhysical mutates incoming physical cluster update operations to make sure we are
-// enforcing the plugin annotations on the physical resources.
-func (h *PreferParentSecretsHook) MutateUpdatePhysical(
-	ctx context.Context,
-	obj ctrlruntimeclient.Object,
-) (ctrlruntimeclient.Object, error) {
-	_ = ctx
-
-	pod, ok := obj.(*corev1.Pod)
-	if !ok {
-		return nil, fmt.Errorf("%w: object %v is not a pod", ErrWrongResourceType, obj)
-	}
-
-	MutateAnnotations(pod, preferSecretsHookName)
-
-	return pod, nil
 }

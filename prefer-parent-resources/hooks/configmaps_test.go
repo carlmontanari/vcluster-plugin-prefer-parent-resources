@@ -6,46 +6,28 @@ import (
 
 	"github.com/carlmontanari/vcluster-plugin-prefer-parent-resources/prefer-parent-resources/hooks"
 
-	"github.com/google/go-cmp/cmp"
-
-	"github.com/loft-sh/vcluster-sdk/syncer/translator"
-	ctrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client"
-
-	generictesting "github.com/loft-sh/vcluster-sdk/syncer/testing"
+	vclustersdksyncertesting "github.com/loft-sh/vcluster-sdk/syncer/testing"
+	vclustersdksyncertranslator "github.com/loft-sh/vcluster-sdk/syncer/translator"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
-func falsePtr() *bool {
-	f := false
-
-	return &f
-}
-
-type testPreferParentConfigmapHookTestCase struct {
-	description string
-	pClientObjs []runtime.Object
-	vClientObjs []runtime.Object
-	mutateObj   ctrlruntimeclient.Object
-	expected    string
-}
-
 func testPreferParentConfigmapsVolumesMutateCreatePhysical(
 	testName string,
-	testCase *testPreferParentConfigmapHookTestCase,
+	testCase *testPreferParentEnvVolTestCase,
 ) func(t *testing.T) {
 	return func(t *testing.T) {
 		t.Logf("%s: starting", testName)
 
 		scheme := newScheme()
 
-		pClient := generictesting.NewFakeClient(scheme, testCase.pClientObjs...)
-		vClient := generictesting.NewFakeClient(scheme, testCase.vClientObjs...)
+		pClient := vclustersdksyncertesting.NewFakeClient(scheme, testCase.pClientObjs...)
+		vClient := vclustersdksyncertesting.NewFakeClient(scheme, testCase.vClientObjs...)
 
-		ctx := generictesting.NewFakeRegisterContext(pClient, vClient)
+		ctx := vclustersdksyncertesting.NewFakeRegisterContext(pClient, vClient)
 
-		h := hooks.NewPreferParentConfigmapsHook(ctx).(*hooks.PreferParentConfigmapsHook)
+		h := hooks.NewPreferParentConfigmapsHook(ctx)
 
 		res, err := h.MutateCreatePhysical(context.Background(), testCase.mutateObj)
 		if err != nil {
@@ -63,11 +45,19 @@ func testPreferParentConfigmapsVolumesMutateCreatePhysical(
 }
 
 func TestPreferParentConfigmapsVolumesMutateCreatePhysical(t *testing.T) {
-	cases := map[string]*testPreferParentConfigmapHookTestCase{
+	cases := map[string]*testPreferParentEnvVolTestCase{
 		"no-sync-annotation": {
 			description: "validate that pods with the 'no-sync' annotation do not get mutated " +
 				"to attach to 'real' configmap",
-			pClientObjs: []runtime.Object{},
+			pClientObjs: []runtime.Object{
+				&corev1.ConfigMap{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "someconfigmap",
+						Namespace: "test",
+					},
+					Data: map[string]string{"somekey": "someval"},
+				},
+			},
 			vClientObjs: []runtime.Object{
 				&corev1.Pod{
 					ObjectMeta: metav1.ObjectMeta{
@@ -95,9 +85,9 @@ func TestPreferParentConfigmapsVolumesMutateCreatePhysical(t *testing.T) {
 					Name:      "somepod",
 					Namespace: "test",
 					Annotations: map[string]string{
-						translator.NameAnnotation:      "somepod",
-						translator.NamespaceAnnotation: "test",
-						hooks.SkipPreferConfigMapsHook: "1",
+						vclustersdksyncertranslator.NameAnnotation:      "somepod",
+						vclustersdksyncertranslator.NamespaceAnnotation: "test",
+						hooks.SkipPreferConfigMapsHook:                  "1",
 					},
 				},
 				Spec: corev1.PodSpec{
@@ -146,8 +136,8 @@ func TestPreferParentConfigmapsVolumesMutateCreatePhysical(t *testing.T) {
 					Name:      "somepod",
 					Namespace: "test",
 					Annotations: map[string]string{
-						translator.NameAnnotation:      "somepod",
-						translator.NamespaceAnnotation: "test",
+						vclustersdksyncertranslator.NameAnnotation:      "somepod",
+						vclustersdksyncertranslator.NamespaceAnnotation: "test",
 					},
 				},
 				Spec: corev1.PodSpec{
@@ -204,8 +194,8 @@ func TestPreferParentConfigmapsVolumesMutateCreatePhysical(t *testing.T) {
 					Name:      "somepod",
 					Namespace: "test",
 					Annotations: map[string]string{
-						translator.NameAnnotation:      "somepod",
-						translator.NamespaceAnnotation: "test",
+						vclustersdksyncertranslator.NameAnnotation:      "somepod",
+						vclustersdksyncertranslator.NamespaceAnnotation: "test",
 					},
 				},
 				Spec: corev1.PodSpec{
@@ -233,19 +223,19 @@ func TestPreferParentConfigmapsVolumesMutateCreatePhysical(t *testing.T) {
 
 func testPreferParentConfigmapsEnvVarMutateCreatePhysical(
 	testName string,
-	testCase *testPreferParentConfigmapHookTestCase,
+	testCase *testPreferParentEnvVolTestCase,
 ) func(t *testing.T) {
 	return func(t *testing.T) {
 		t.Logf("%s: starting", testName)
 
 		scheme := newScheme()
 
-		pClient := generictesting.NewFakeClient(scheme, testCase.pClientObjs...)
-		vClient := generictesting.NewFakeClient(scheme, testCase.vClientObjs...)
+		pClient := vclustersdksyncertesting.NewFakeClient(scheme, testCase.pClientObjs...)
+		vClient := vclustersdksyncertesting.NewFakeClient(scheme, testCase.vClientObjs...)
 
-		ctx := generictesting.NewFakeRegisterContext(pClient, vClient)
+		ctx := vclustersdksyncertesting.NewFakeRegisterContext(pClient, vClient)
 
-		h := hooks.NewPreferParentConfigmapsHook(ctx).(*hooks.PreferParentConfigmapsHook)
+		h := hooks.NewPreferParentConfigmapsHook(ctx)
 
 		res, err := h.MutateCreatePhysical(context.Background(), testCase.mutateObj)
 		if err != nil {
@@ -263,7 +253,7 @@ func testPreferParentConfigmapsEnvVarMutateCreatePhysical(
 }
 
 func TestPreferParentConfigmapsEnvVarMutateCreatePhysical(t *testing.T) {
-	cases := map[string]*testPreferParentConfigmapHookTestCase{
+	cases := map[string]*testPreferParentEnvVolTestCase{
 		"no-sync-annotation": {
 			description: "validate that pods with the 'no-sync' annotation do not get mutated " +
 				"to attach to 'real' configmap",
@@ -305,9 +295,9 @@ func TestPreferParentConfigmapsEnvVarMutateCreatePhysical(t *testing.T) {
 					Name:      "somepod",
 					Namespace: "test",
 					Annotations: map[string]string{
-						translator.NameAnnotation:      "somepod",
-						translator.NamespaceAnnotation: "test",
-						hooks.SkipPreferConfigMapsHook: "1",
+						vclustersdksyncertranslator.NameAnnotation:      "somepod",
+						vclustersdksyncertranslator.NamespaceAnnotation: "test",
+						hooks.SkipPreferConfigMapsHook:                  "1",
 					},
 				},
 				Spec: corev1.PodSpec{
@@ -377,8 +367,8 @@ func TestPreferParentConfigmapsEnvVarMutateCreatePhysical(t *testing.T) {
 					Name:      "somepod",
 					Namespace: "test",
 					Annotations: map[string]string{
-						translator.NameAnnotation:      "somepod",
-						translator.NamespaceAnnotation: "test",
+						vclustersdksyncertranslator.NameAnnotation:      "somepod",
+						vclustersdksyncertranslator.NamespaceAnnotation: "test",
 					},
 				},
 				Spec: corev1.PodSpec{
@@ -456,8 +446,8 @@ func TestPreferParentConfigmapsEnvVarMutateCreatePhysical(t *testing.T) {
 					Name:      "somepod",
 					Namespace: "test",
 					Annotations: map[string]string{
-						translator.NameAnnotation:      "somepod",
-						translator.NamespaceAnnotation: "test",
+						vclustersdksyncertranslator.NameAnnotation:      "somepod",
+						vclustersdksyncertranslator.NamespaceAnnotation: "test",
 					},
 				},
 				Spec: corev1.PodSpec{
@@ -490,79 +480,6 @@ func TestPreferParentConfigmapsEnvVarMutateCreatePhysical(t *testing.T) {
 
 	for testName, testCase := range cases {
 		f := testPreferParentConfigmapsEnvVarMutateCreatePhysical(testName, testCase)
-		t.Run(testName, f)
-	}
-}
-
-func testPreferParentConfigmapsMutateUpdatePhysical(
-	testName string,
-	testCase *comparePodTestCase,
-) func(t *testing.T) {
-	return func(t *testing.T) {
-		t.Logf("%s: starting", testName)
-
-		scheme := newScheme()
-
-		pClient := generictesting.NewFakeClient(scheme)
-		vClient := generictesting.NewFakeClient(scheme)
-
-		ctx := generictesting.NewFakeRegisterContext(pClient, vClient)
-
-		h := hooks.NewPreferParentConfigmapsHook(ctx).(*hooks.PreferParentConfigmapsHook)
-
-		res, err := h.MutateUpdatePhysical(context.Background(), testCase.inPod)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		if !cmp.Equal(res, testCase.expected) {
-			t.Fatalf(
-				"%s: actual and expected inputs do not match\nactual: %s\nexpected:%s",
-				testName,
-				testCase.inPod,
-				testCase.expected,
-			)
-		}
-	}
-}
-
-func TestPreferParentConfigmapsMutateUpdatePhysical(t *testing.T) {
-	cases := map[string]*comparePodTestCase{
-		"no-existing-annotations": {
-			inPod: &corev1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					Annotations: map[string]string{},
-				},
-			},
-			expected: &corev1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					Annotations: map[string]string{
-						"vcluster.loft.sh/mutated-by-hook": "prefer-parent-configmaps-hook",
-					},
-				},
-			},
-		},
-		"existing-annotations": {
-			inPod: &corev1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					Annotations: map[string]string{
-						"someannotation": "somevalue",
-					},
-				},
-			},
-			expected: &corev1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					Annotations: map[string]string{
-						"someannotation":                   "somevalue",
-						"vcluster.loft.sh/mutated-by-hook": "prefer-parent-configmaps-hook",
-					},
-				},
-			},
-		},
-	}
-
-	for testName, testCase := range cases {
-		f := testPreferParentConfigmapsMutateUpdatePhysical(testName, testCase)
 		t.Run(testName, f)
 	}
 }

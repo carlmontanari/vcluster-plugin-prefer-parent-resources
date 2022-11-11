@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/loft-sh/vcluster-sdk/syncer/translator"
+	vclustersdksyncertranslator "github.com/loft-sh/vcluster-sdk/syncer/translator"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	ctrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client"
@@ -113,8 +113,8 @@ func GetVirtualPod(
 	virtualClient ctrlruntimeclient.Client,
 ) (*corev1.Pod, error) {
 	// get the "real" name of the pod (as in "real" in the vcluster)
-	vName := pod.Annotations[translator.NameAnnotation]
-	vNamespace := pod.Annotations[translator.NamespaceAnnotation]
+	vName := pod.Annotations[vclustersdksyncertranslator.NameAnnotation]
+	vNamespace := pod.Annotations[vclustersdksyncertranslator.NamespaceAnnotation]
 
 	vPod := &corev1.Pod{}
 

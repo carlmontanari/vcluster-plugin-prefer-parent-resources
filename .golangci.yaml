@@ -43,6 +43,11 @@ linters-settings:
   importas:
     no-unaliased: true
     alias:
+      # cover vcluster-sdk
+      - pkg: github.com/loft-sh/vcluster-sdk/(\w+)
+        alias: vclustersdk$1
+      - pkg: github.com/loft-sh/vcluster-sdk/(\w+)/(\w+)
+        alias: vclustersdk$1$2
       # controller-runtime
       - pkg: sigs.k8s.io/controller-runtime
         alias: ctrlruntime
@@ -50,7 +55,7 @@ linters-settings:
       - pkg: sigs.k8s.io/controller-runtime/pkg/client
         alias: ctrlruntimeclient
       # cover apimachinery packages ex: metav1
-      - pkg: k8s.io/apimachinery/pkg/apis/$1/$2
+      - pkg: k8s.io/apimachinery/pkg/apis/(\w+)/(\w+)
         alias: $1$2
       # cover apimachinery errrors
       - pkg: k8s.io/apimachinery/pkg/api/errors
