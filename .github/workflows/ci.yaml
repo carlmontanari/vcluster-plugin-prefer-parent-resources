@@ -26,6 +26,8 @@ jobs:
         uses: actions/setup-go@v3
         with:
           go-version: ${{ matrix.go-version }}
+      - name: Setup tmate session
+        uses: mxschmitt/action-tmate@v3
       - name: lint
         uses: golangci/golangci-lint-action@v3
         with:
