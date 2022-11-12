@@ -1,4 +1,4 @@
-name: Commit
+name: CI
 
 on:
   - push
@@ -6,7 +6,7 @@ on:
   - workflow_dispatch
 
 jobs:
-  unit-test:
+  ci:
     runs-on: ${{ matrix.os }}
     strategy:
       max-parallel: 3
