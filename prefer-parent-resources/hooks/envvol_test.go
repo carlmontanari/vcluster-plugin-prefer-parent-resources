@@ -4,6 +4,8 @@ import (
 	"context"
 	"testing"
 
+	vclustersdksyncercontext "github.com/loft-sh/vcluster-sdk/syncer/context"
+
 	"github.com/carlmontanari/vcluster-plugin-prefer-parent-resources/prefer-parent-resources/hooks"
 	"github.com/google/go-cmp/cmp"
 	vclustersdksyncertesting "github.com/loft-sh/vcluster-sdk/syncer/testing"
@@ -14,6 +16,7 @@ import (
 func testPreferParentExecute(
 	testName string,
 	testCase *testPreferParentEnvVolTestCase,
+	getHook func(ctx *vclustersdksyncercontext.RegisterContext) hooks.EnvVolMutatingHook,
 	getActual func(resPod *corev1.Pod) string,
 ) func(t *testing.T) {
 	return func(t *testing.T) {
@@ -26,7 +29,7 @@ func testPreferParentExecute(
 
 		ctx := vclustersdksyncertesting.NewFakeRegisterContext(pClient, vClient)
 
-		h := hooks.NewPreferParentSecretsHook(ctx)
+		h := getHook(ctx)
 
 		res, err := h.MutateCreatePhysical(context.Background(), testCase.mutateObj)
 		if err != nil {

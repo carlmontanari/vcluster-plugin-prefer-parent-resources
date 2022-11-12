@@ -137,6 +137,7 @@ issues:
         - unused
         - unparam
         - funlen
+        - gochecknoglobals
 
 run:
   go: '1.19'

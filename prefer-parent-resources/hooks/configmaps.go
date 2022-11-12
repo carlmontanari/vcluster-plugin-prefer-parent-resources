@@ -4,11 +4,14 @@ package hooks
 import (
 	"context"
 
+	apimachineryerrors "k8s.io/apimachinery/pkg/api/errors"
+
+	vclustersdklog "github.com/loft-sh/vcluster-sdk/log"
+
 	vclustersdktranslate "github.com/loft-sh/vcluster-sdk/translate"
 	"k8s.io/apimachinery/pkg/types"
 
 	vclustersdksyncercontext "github.com/loft-sh/vcluster-sdk/syncer/context"
-	vclustersdksyncertranslator "github.com/loft-sh/vcluster-sdk/syncer/translator"
 	corev1 "k8s.io/api/core/v1"
 	ctrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -25,21 +28,14 @@ const (
 func NewPreferParentConfigmapsHook(
 	ctx *vclustersdksyncercontext.RegisterContext,
 ) EnvVolMutatingHook {
-	return &envVolMutatingHook{
-		name:             preferConfigMapsHookName,
-		ignoreAnnotation: SkipPreferConfigMapsHook,
-		mutateType:       &corev1.ConfigMap{},
-		translator: vclustersdksyncertranslator.NewNamespacedTranslator(
-			ctx,
-			configMap,
-			&corev1.ConfigMap{},
-		),
-		physicalNamespace: ctx.TargetNamespace,
-		physicalClient:    ctx.PhysicalManager.GetClient(),
-		virtualClient:     ctx.VirtualManager.GetClient(),
-		envMutator:        mutateCreatePhysicalConfigMapEnvs,
-		volMutator:        mutateCreatePhysicalConfigMapVols,
-	}
+	return newEnvVolMutatingHook(
+		ctx,
+		preferConfigMapsHookName,
+		SkipPreferConfigMapsHook,
+		&corev1.ConfigMap{},
+		mutateCreatePhysicalConfigMapEnvs,
+		mutateCreatePhysicalConfigMapVols,
+	)
 }
 
 // PreferParentConfigmapsHook is a hook.ClientHook implementation that will prefer configmaps from
@@ -52,6 +48,7 @@ type PreferParentConfigmapsHook struct {
 
 func mutateCreatePhysicalConfigMapEnvs(
 	ctx context.Context,
+	log vclustersdklog.Logger,
 	physicalClient ctrlruntimeclient.Client,
 	physicalNamespace string,
 	configmapEnvs []EnvAtPos,
@@ -61,8 +58,14 @@ func mutateCreatePhysicalConfigMapEnvs(
 		var pEnvRefName string
 
 		for envI := range vPod.Spec.Containers[configmapEnvs[i].containerPos].Env {
-			vObjName := vPod.Spec.Containers[configmapEnvs[i].containerPos].Env[envI].
-				ValueFrom.ConfigMapKeyRef.LocalObjectReference.Name
+			env := vPod.Spec.Containers[configmapEnvs[i].containerPos].Env[envI]
+
+			if env.ValueFrom.ConfigMapKeyRef == nil {
+				// not a configmap, skip
+				continue
+			}
+
+			vObjName := env.ValueFrom.ConfigMapKeyRef.LocalObjectReference.Name
 
 			translatedEnvRefName := vclustersdktranslate.PhysicalName(
 				vObjName,
@@ -91,13 +94,56 @@ func mutateCreatePhysicalConfigMapEnvs(
 			},
 			realConfigMap,
 		)
-		// we did not find a real configmap matching the virtual pods configmap name
 		if err != nil {
+			// we hit some error other than not found; log and move on. otherwise we just assume
+			// not found and we also move on.
+			if !apimachineryerrors.IsNotFound(err) {
+				log.Errorf(
+					"error fetching host cluster configmap '%s/%s', error: '%s', skipping...",
+					physicalNamespace,
+					pEnvRefName,
+					err,
+				)
+			}
+
 			continue
 		}
 
-		pod.Spec.Containers[configmapEnvs[i].containerPos].Env[configmapEnvs[i].envPos].ValueFrom.
-			ConfigMapKeyRef.LocalObjectReference.Name = pEnvRefName
+		log.Infof(
+			"mutating pod '%s/%s' container at index '%d', env name '%s' to mount real volume '%s/%s'",
+			pod.Namespace,
+			pod.Name,
+			configmapEnvs[i].containerPos,
+			configmapEnvs[i].env.Name,
+			realConfigMap.Namespace,
+			realConfigMap.Name,
+		)
+
+		var replaced bool
+
+		for envI, env := range pod.Spec.Containers[configmapEnvs[i].containerPos].Env {
+			if env.Name == configmapEnvs[i].env.Name {
+				pod.Spec.Containers[configmapEnvs[i].containerPos].Env[envI].ValueFrom.
+					ConfigMapKeyRef.LocalObjectReference.Name = pEnvRefName
+
+				replaced = true
+
+				break
+			}
+		}
+
+		if !replaced {
+			log.Errorf(
+				"failed mutating pod '%s/%s' container at index '%d', env name '%s' "+
+					"to mount real volume '%s/%s'",
+				pod.Namespace,
+				pod.Name,
+				configmapEnvs[i].containerPos,
+				configmapEnvs[i].env.Name,
+				realConfigMap.Namespace,
+				realConfigMap.Name,
+			)
+		}
 	}
 
 	return pod
@@ -105,6 +151,7 @@ func mutateCreatePhysicalConfigMapEnvs(
 
 func mutateCreatePhysicalConfigMapVols(
 	ctx context.Context,
+	log vclustersdklog.Logger,
 	physicalClient ctrlruntimeclient.Client,
 	physicalNamespace string,
 	configmapVols []VolAtPos,
@@ -119,7 +166,7 @@ func mutateCreatePhysicalConfigMapVols(
 		)
 
 		if translatedVolumeName == configmapVols[i].vol.ConfigMap.Name {
-			pVolumeName = vPod.Spec.Volumes[i].VolumeSource.ConfigMap.Name
+			pVolumeName = vPod.Spec.Volumes[configmapVols[i].pos].VolumeSource.ConfigMap.Name
 		}
 
 		// we should *not* ever hit this because we should always have alignment between the virtual
@@ -138,10 +185,29 @@ func mutateCreatePhysicalConfigMapVols(
 			},
 			realConfigMap,
 		)
-		// we did not find a real configmap matching the virtual pods configmap name
 		if err != nil {
+			// we hit some error other than not found; log and move on. otherwise we just assume
+			// not found and we also move on.
+			if !apimachineryerrors.IsNotFound(err) {
+				log.Errorf(
+					"error fetching host cluster configmap '%s/%s', error: '%s', skipping...",
+					physicalNamespace,
+					pVolumeName,
+					err,
+				)
+			}
+
 			continue
 		}
+
+		log.Infof(
+			"mutating pod '%s/%s' volume at index '%d' to mount real volume '%s/%s'",
+			pod.Namespace,
+			pod.Name,
+			configmapVols[i].pos,
+			realConfigMap.Namespace,
+			realConfigMap.Name,
+		)
 
 		pod.Spec.Volumes[configmapVols[i].pos].VolumeSource.ConfigMap.Name = pVolumeName
 	}

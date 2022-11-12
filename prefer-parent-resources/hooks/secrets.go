@@ -4,11 +4,14 @@ package hooks
 import (
 	"context"
 
+	vclustersdklog "github.com/loft-sh/vcluster-sdk/log"
+
+	apimachineryerrors "k8s.io/apimachinery/pkg/api/errors"
+
 	vclustersdktranslate "github.com/loft-sh/vcluster-sdk/translate"
 	"k8s.io/apimachinery/pkg/types"
 
 	vclustersdksyncercontext "github.com/loft-sh/vcluster-sdk/syncer/context"
-	vclustersdksyncertranslator "github.com/loft-sh/vcluster-sdk/syncer/translator"
 	corev1 "k8s.io/api/core/v1"
 	ctrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -23,21 +26,14 @@ const (
 
 // NewPreferParentSecretsHook returns a NewPreferParentSecretsHook hook.ClientHook.
 func NewPreferParentSecretsHook(ctx *vclustersdksyncercontext.RegisterContext) EnvVolMutatingHook {
-	return &envVolMutatingHook{
-		name:             preferSecretsHookName,
-		ignoreAnnotation: SkipPreferSecretsHook,
-		mutateType:       &corev1.Secret{},
-		translator: vclustersdksyncertranslator.NewNamespacedTranslator(
-			ctx,
-			secret,
-			&corev1.Secret{},
-		),
-		physicalNamespace: ctx.TargetNamespace,
-		physicalClient:    ctx.PhysicalManager.GetClient(),
-		virtualClient:     ctx.VirtualManager.GetClient(),
-		envMutator:        mutateCreatePhysicalSecretEnvs,
-		volMutator:        mutateCreatePhysicalSecretVols,
-	}
+	return newEnvVolMutatingHook(
+		ctx,
+		preferSecretsHookName,
+		SkipPreferSecretsHook,
+		&corev1.Secret{},
+		mutateCreatePhysicalSecretEnvs,
+		mutateCreatePhysicalSecretVols,
+	)
 }
 
 // PreferParentSecretsHook is a hook.ClientHook implementation that will prefer secrets from
@@ -50,6 +46,7 @@ type PreferParentSecretsHook struct {
 
 func mutateCreatePhysicalSecretEnvs(
 	ctx context.Context,
+	log vclustersdklog.Logger,
 	physicalClient ctrlruntimeclient.Client,
 	physicalNamespace string,
 	secretEnvs []EnvAtPos,
@@ -59,8 +56,14 @@ func mutateCreatePhysicalSecretEnvs(
 		var pEnvRefName string
 
 		for envI := range vPod.Spec.Containers[secretEnvs[i].containerPos].Env {
-			vObjName := vPod.Spec.Containers[secretEnvs[i].containerPos].Env[envI].
-				ValueFrom.SecretKeyRef.LocalObjectReference.Name
+			env := vPod.Spec.Containers[secretEnvs[i].containerPos].Env[envI]
+
+			if env.ValueFrom.SecretKeyRef == nil {
+				// not a secret, skip
+				continue
+			}
+
+			vObjName := env.ValueFrom.SecretKeyRef.LocalObjectReference.Name
 
 			translatedEnvRefName := vclustersdktranslate.PhysicalName(
 				vObjName,
@@ -88,13 +91,56 @@ func mutateCreatePhysicalSecretEnvs(
 			},
 			realSecret,
 		)
-		// we did not find a real configmap matching the virtual pods configmap name
 		if err != nil {
+			// we hit some error other than not found; log and move on. otherwise we just assume
+			// not found and we also move on.
+			if !apimachineryerrors.IsNotFound(err) {
+				log.Errorf(
+					"error fetching host cluster secret '%s/%s', error: '%s', skipping...",
+					physicalNamespace,
+					pEnvRefName,
+					err,
+				)
+			}
+
 			continue
 		}
 
-		pod.Spec.Containers[secretEnvs[i].containerPos].Env[secretEnvs[i].envPos].ValueFrom.
-			SecretKeyRef.LocalObjectReference.Name = pEnvRefName
+		log.Infof(
+			"mutating pod '%s/%s' container at index '%d', env name '%s' to mount real volume '%s/%s'",
+			pod.Namespace,
+			pod.Name,
+			secretEnvs[i].containerPos,
+			secretEnvs[i].env.Name,
+			realSecret.Namespace,
+			realSecret.Name,
+		)
+
+		var replaced bool
+
+		for envI, env := range pod.Spec.Containers[secretEnvs[i].containerPos].Env {
+			if env.Name == secretEnvs[i].env.Name {
+				pod.Spec.Containers[secretEnvs[i].containerPos].Env[envI].ValueFrom.
+					SecretKeyRef.LocalObjectReference.Name = pEnvRefName
+
+				replaced = true
+
+				break
+			}
+		}
+
+		if !replaced {
+			log.Errorf(
+				"failed mutating pod '%s/%s' container at index '%d', env name '%s' "+
+					"to mount real volume '%s/%s'",
+				pod.Namespace,
+				pod.Name,
+				secretEnvs[i].containerPos,
+				secretEnvs[i].env.Name,
+				realSecret.Namespace,
+				realSecret.Name,
+			)
+		}
 	}
 
 	return pod
@@ -102,6 +148,7 @@ func mutateCreatePhysicalSecretEnvs(
 
 func mutateCreatePhysicalSecretVols(
 	ctx context.Context,
+	log vclustersdklog.Logger,
 	physicalClient ctrlruntimeclient.Client,
 	physicalNamespace string,
 	secretVols []VolAtPos,
@@ -116,7 +163,7 @@ func mutateCreatePhysicalSecretVols(
 		)
 
 		if translatedVolumeName == secretVols[i].vol.Secret.SecretName {
-			pVolumeName = vPod.Spec.Volumes[i].VolumeSource.Secret.SecretName
+			pVolumeName = vPod.Spec.Volumes[secretVols[i].pos].VolumeSource.Secret.SecretName
 		}
 
 		// we should *not* ever hit this because we should always have alignment between the virtual
@@ -135,11 +182,29 @@ func mutateCreatePhysicalSecretVols(
 			},
 			realSecret,
 		)
-		// we did not find a real configmap matching the virtual pods configmap name
-		// TODO this should check for notfound vs some other errors and behave accordingly
 		if err != nil {
+			// we hit some error other than not found; log and move on. otherwise we just assume
+			// not found and we also move on.
+			if !apimachineryerrors.IsNotFound(err) {
+				log.Errorf(
+					"error fetching host cluster secret '%s/%s', error: '%s', skipping...",
+					physicalNamespace,
+					pVolumeName,
+					err,
+				)
+			}
+
 			continue
 		}
+
+		log.Infof(
+			"mutating pod '%s/%s' volume at index '%d' to mount real volume '%s/%s'",
+			pod.Namespace,
+			pod.Name,
+			secretVols[i].pos,
+			realSecret.Namespace,
+			realSecret.Name,
+		)
 
 		pod.Spec.Volumes[secretVols[i].pos].VolumeSource.Secret.SecretName = pVolumeName
 	}

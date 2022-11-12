@@ -34,7 +34,6 @@ func MutateAnnotations(pod *corev1.Pod, hookName string) {
 // list, and position in the env list of that container.
 type EnvAtPos struct {
 	containerPos int
-	envPos       int
 	env          corev1.EnvVar
 }
 
@@ -56,7 +55,6 @@ func FindMountedEnvsOfType(podSpec *corev1.PodSpec, t string) []EnvAtPos {
 						envsOfType,
 						EnvAtPos{
 							containerI,
-							envI,
 							podSpec.Containers[containerI].Env[envI],
 						},
 					)
@@ -67,7 +65,6 @@ func FindMountedEnvsOfType(podSpec *corev1.PodSpec, t string) []EnvAtPos {
 						envsOfType,
 						EnvAtPos{
 							containerI,
-							envI,
 							podSpec.Containers[containerI].Env[envI],
 						},
 					)

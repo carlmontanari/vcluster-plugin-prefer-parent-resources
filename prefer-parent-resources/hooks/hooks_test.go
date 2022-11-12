@@ -31,9 +31,12 @@ func falsePtr() *bool {
 }
 
 type testPreferParentEnvVolTestCase struct {
-	description string
-	pClientObjs []runtime.Object
-	vClientObjs []runtime.Object
-	mutateObj   ctrlruntimeclient.Object
-	expected    string
+	description  string
+	pClientObjs  []runtime.Object
+	vClientObjs  []runtime.Object
+	mutateObj    ctrlruntimeclient.Object
+	volPos       int
+	containerPos int
+	envPos       int
+	expected     string
 }
