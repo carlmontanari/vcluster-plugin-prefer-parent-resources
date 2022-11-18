@@ -40,6 +40,26 @@ linters-settings:
           - (github.com/golangci/golangci-lint/pkg/logutils.Log).Warnf
           - (github.com/golangci/golangci-lint/pkg/logutils.Log).Errorf
           - (github.com/golangci/golangci-lint/pkg/logutils.Log).Fatalf
+  importas:
+    no-unaliased: true
+    alias:
+      # cover vcluster-sdk
+      - pkg: github.com/loft-sh/vcluster-sdk/(\w+)
+        alias: vclustersdk$1
+      - pkg: github.com/loft-sh/vcluster-sdk/(\w+)/(\w+)
+        alias: vclustersdk$1$2
+      # controller-runtime
+      - pkg: sigs.k8s.io/controller-runtime
+        alias: ctrlruntime
+      # controller-runtime-client
+      - pkg: sigs.k8s.io/controller-runtime/pkg/client
+        alias: ctrlruntimeclient
+      # cover apimachinery packages ex: metav1
+      - pkg: k8s.io/apimachinery/pkg/apis/(\w+)/(\w+)
+        alias: $1$2
+      # cover apimachinery errrors
+      - pkg: k8s.io/apimachinery/pkg/api/errors
+        alias: apimachineryerrors
   lll:
     line-length: 100
   stylecheck:
@@ -61,7 +81,6 @@ linters:
     - forbidigo
     - gofumpt
     - bodyclose
-    - deadcode
     - depguard
     - dogsled
     - dupl
@@ -80,22 +99,20 @@ linters:
     - gosimple
     - govet
     - ineffassign
+    - importas
     - lll
     - misspell
     - nakedret
     - noctx
     - nolintlint
     - revive
-    - rowserrcheck
     - exportloopref
     - staticcheck
-    - structcheck
     - stylecheck
     - typecheck
     - unconvert
     - unparam
     - unused
-    - varcheck
     - whitespace
     - asciicheck
     - gochecknoglobals
@@ -120,18 +137,13 @@ issues:
         - unused
         - unparam
         - funlen
-        - lll
+        - gochecknoglobals
 
 run:
-  # running w/ 1.17 because we dont actually need/use 1.18 things and 1.18 breaks some linters.
-  go: '1.17'
+  go: '1.19'
   skip-dirs:
-    - private
+    - .private
     - vendor
 
-# golangci.com configuration
-# https://github.com/golangci/golangci/wiki/Configuration
 service:
-  golangci-lint-version: 1.45.x # use the fixed version to not introduce new linters unexpectedly
-  prepare:
-    - echo "here I can run custom commands, but no preparation needed for this repo"
+  golangci-lint-version: 1.50.x

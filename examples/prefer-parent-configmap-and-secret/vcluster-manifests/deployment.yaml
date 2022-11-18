@@ -1,0 +1,74 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: debian
+  namespace: vcluster
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: debian
+  template:
+    metadata:
+      labels:
+        app: debian
+    spec:
+      containers:
+        - name: debian-volumes
+          image: debian:bullseye
+          command:
+            - sleep
+            - infinity
+          volumeMounts:
+            - name: virtual-configmap
+              mountPath: /dummy-virtual
+            - name: virtual-secret
+              mountPath: /dummy-secrets-virtual
+            - name: configmap
+              mountPath: /dummy
+            - name: secret
+              mountPath: /dummy-secrets
+        - name: debian-envs
+          image: debian:bullseye
+          command:
+            - sleep
+            - infinity
+          env:
+            - name: config
+              valueFrom:
+                configMapKeyRef:
+                  name: real-configmap
+                  key: redis.conf
+                  optional: false
+            - name: secret
+              valueFrom:
+                secretKeyRef:
+                  name: real-secret
+                  key: client-id
+                  optional: false
+            - name: virtual-config
+              valueFrom:
+                configMapKeyRef:
+                  name: virtual-configmap
+                  key: redis.conf
+                  optional: false
+            - name: virtual-secret
+              valueFrom:
+                secretKeyRef:
+                  name: virtual-secret
+                  key: client-id
+                  optional: false
+      volumes:
+        - name: virtual-configmap
+          configMap:
+            name: virtual-configmap
+        - name: virtual-secret
+          secret:
+            secretName: virtual-secret
+        - name: configmap
+          configMap:
+            name: real-configmap
+        - name: secret
+          secret:
+            secretName: real-secret

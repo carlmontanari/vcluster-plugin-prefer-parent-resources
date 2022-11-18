@@ -1,4 +1,4 @@
 plugin:
   prefer-parent-resources-hooks:
-    image: k3d-local-registry:5050/prefer-parent-resources-hooks:latest
+    image: 172.31.254.11/prefer-parent-resources-hooks
 
