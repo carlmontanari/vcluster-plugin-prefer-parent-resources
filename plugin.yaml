@@ -1,4 +1,4 @@
 plugin:
-  prefer-parent-resources-hooks:
-    image: 172.31.254.11/prefer-parent-resources-hooks
+  prefer-parent-resources:
+    image: 172.31.254.11/prefer-parent-resources
 
