@@ -27,12 +27,7 @@ exist in the vcluster (and which would get synced into the parent cluster by the
 Now that the vcluster is set up, and some "real" resources have been created in the parent cluster,
 it is time to test out the plugin!
 
-`make connect-vcluster && sleep 1 && KUBECONFIG=./kubeconfig.yaml kubectl apply -f examples/prefer-parent-configmap-and-secret/vcluster-manifests`
-
-*Note* the make directive runs connect and sends it to the background -- this makes vcluster 
-generate the kubeconfig file we can use to connect to the vcluster. You could of course just use 
-vcluster with the (default) connect flag set, but we want to pop back and forth and this is an 
-easy way to do that.
+`vcluster connect my-vcluster --namespace my-vcluster -- kubectl apply -f examples/prefer-parent-configmap-and-secret/vcluster-manifests`
 
 
 # Validate
@@ -147,6 +142,28 @@ And we should get some output similar to:
 
 In the above output the `config` and `secret` envs should map to "real" resources, and sure enough
 they do!
+
+We can also check the actual contents of the mounted volumes, for example let's take a look at 
+the `redis.conf` file that was mounted:
+
+`kubectl get pods -n my-vcluster | grep debian |  kubectl exec -n my-vcluster $(kubectl get pods -n my-vcluster | grep debian | awk '{ print $1 }') -c debian-volumes  cat dummy/redis.conf`
+
+We should have an output like below -- the configmap that lives in the vcluster and is *also* 
+called "real-configmap" would have contents of "somekey=somevalue" instead.
+
+```bash
+somerealkey=somerealvalue
+```
+
+And the same for the "dummy-virtual" mount:
+
+`kubectl get pods -n my-vcluster | grep debian |  kubectl exec -n my-vcluster $(kubectl get pods -n my-vcluster | grep debian | awk '{ print $1 }') -c debian-volumes  cat dummy-virtual/redis.conf`
+
+We should have an output like:
+
+```bash
+virtualkey=virtualvalue
+```
 
 That is pretty much the entire point of the plugin! Prefer configmaps and secrets that exist in the
 "real" cluster, otherwise behave like "normal"!

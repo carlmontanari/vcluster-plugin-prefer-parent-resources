@@ -6,7 +6,7 @@ help:
 ifdef PLUGIN_REPOSITORY
 REPO := $(PLUGIN_REPOSITORY)/
 else
-REPO := "X"
+REPO :=
 endif
 
 
@@ -29,6 +29,6 @@ connect-vcluster: ## connect to vcluster and pop out KUBECONFIG
 	vcluster connect my-vcluster -n my-vcluster --kube-config="./kubeconfig.yaml" --update-current=false &
 
 build-image: ## build docker image, set PLUGIN_REPOSITORY envvar to point to pushable repo if not developing docker-desktop or similar
-	docker build . -t $(REPO)prefer-parent-resources-hooks
-	sed -i ".bak" -r "s|(image:).*|\1 "${REPO}"prefer-parent-resources-hooks|" plugin.yaml
+	docker build . -t $(REPO)prefer-parent-resources
+	sed -i ".bak" -r "s|(image:).*|\1 "${REPO}"prefer-parent-resources|" plugin.yaml
 	rm plugin.yaml.bak

@@ -6,4 +6,4 @@ metadata:
   namespace: my-vcluster
 data:
   redis.conf: |
-    somekey=somevalue
+    somerealkey=somerealvalue
